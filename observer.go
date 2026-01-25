@@ -53,9 +53,9 @@ func (s *SlogLogger) With(args ...any) Logger {
 }
 
 // ObserverFunc is a function adapter for Observer interface
-type ObserverFunc func(ctx context.Context, event Event)
+type ObserverFunc func(ctx context.Context, event Eventful)
 
-func (f ObserverFunc) OnEvent(ctx context.Context, event Event) {
+func (f ObserverFunc) OnEvent(ctx context.Context, event Eventful) {
 	f(ctx, event)
 }
 

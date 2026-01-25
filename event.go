@@ -25,6 +25,11 @@ const (
 	RouterStarted   EventType = "router_started"
 	RouterCompleted EventType = "router_finished"
 	RouterFailed    EventType = "router_error"
+
+	// Basic events
+	DebugEventType   EventType = "debug"
+	WarningEventType EventType = "warning"
+	ErrorEventType   EventType = "error"
 )
 
 type Eventful interface {
@@ -35,16 +40,16 @@ type Eventful interface {
 }
 
 type Event struct {
-	Id       string
+	ID       string
 	Type     EventType
 	Time     time.Time
-	Metadata *map[string]any
+	Metadata map[string]any
 }
 
-func (e *Event) GetID() string               { return e.Id }
+func (e *Event) GetID() string               { return e.ID }
 func (e *Event) GetType() EventType          { return e.Type }
 func (e *Event) GetTime() time.Time          { return e.Time }
-func (e *Event) GetMetadata() map[string]any { return *e.Metadata }
+func (e *Event) GetMetadata() map[string]any { return e.Metadata }
 
 // type StarterEvent Event
 // type CompleterEvent Event
@@ -73,92 +78,92 @@ const (
 )
 
 // Helper function to create metadata with extras
-func createMetadata(extras *map[string]any, additionalCapacity int) map[string]any {
+func createMetadata(extras map[string]any, additionalCapacity int) map[string]any {
 	if extras != nil {
-		metadata := make(map[string]any, len(*extras)+additionalCapacity)
-		maps.Copy(metadata, *extras)
+		metadata := make(map[string]any, len(extras)+additionalCapacity)
+		maps.Copy(metadata, extras)
 		return metadata
 	}
 	return make(map[string]any, additionalCapacity)
 }
 
 // ROUTE EVENTS
-func NewEventRouteStarted(id string, inputChannel string, extras *map[string]any) *Event {
+func NewEventRouteStarted(id string, inputChannel string, extras map[string]any) *Event {
 	metadata := createMetadata(extras, 1)
 	metadata[inputChannelKey] = inputChannel
 
-	return &Event{id, RouterStarted, time.Now(), &metadata}
+	return &Event{id, RouterStarted, time.Now(), metadata}
 }
 
-func NewEventRouteCompleted(id string, outputChannel string, extras *map[string]any) *Event {
+func NewEventRouteCompleted(id string, outputChannel string, extras map[string]any) *Event {
 	metadata := createMetadata(extras, 1)
 	metadata[outputChannelKey] = outputChannel
 
-	return &Event{id, RouterCompleted, time.Now(), &metadata}
+	return &Event{id, RouterCompleted, time.Now(), metadata}
 }
 
-func NewEventRouteFailed(id string, err error, extras *map[string]any) *ErrorEvent {
+func NewEventRouteFailed(id string, err error, extras map[string]any) *ErrorEvent {
 	metadata := createMetadata(extras, 0)
 
 	return &ErrorEvent{
-		Event{id, RouterFailed, time.Now(), &metadata},
+		Event{id, RouterFailed, time.Now(), metadata},
 		err,
 	}
 }
 
 // STAGE EVENTS
-func NewEventStageStarted(id string, workers int, extras *map[string]any) *Event {
+func NewEventStageStarted(id string, workers int, extras map[string]any) *Event {
 	metadata := createMetadata(extras, 1)
 	metadata[workersKey] = workers
 
-	return &Event{id, StageStarted, time.Now(), &metadata}
+	return &Event{id, StageStarted, time.Now(), metadata}
 }
 
-func NewEventStageCompleted(id string, extras *map[string]any) *Event {
+func NewEventStageCompleted(id string, extras map[string]any) *Event {
 	metadata := createMetadata(extras, 0)
 
-	return &Event{id, StageCompleted, time.Now(), &metadata}
+	return &Event{id, StageCompleted, time.Now(), metadata}
 }
 
 // WORKER EVENTS
-func NewEventWorkerStarted(id string, stageID string, extras *map[string]any) *Event {
+func NewEventWorkerStarted(id string, stageID string, extras map[string]any) *Event {
 	metadata := createMetadata(extras, 1)
 	metadata[stageIDKey] = stageID
 
-	return &Event{id, WorkerStarted, time.Now(), &metadata}
+	return &Event{id, WorkerStarted, time.Now(), metadata}
 }
 
-func NewEventWorkerCompleted(id string, stageID string, extras *map[string]any) *Event {
+func NewEventWorkerCompleted(id string, stageID string, extras map[string]any) *Event {
 	metadata := createMetadata(extras, 1)
 	metadata[stageIDKey] = stageID
 
-	return &Event{id, WorkerCompleted, time.Now(), &metadata}
+	return &Event{id, WorkerCompleted, time.Now(), metadata}
 }
 
 // ITEM EVENTS
-func NewEventItemProcessStarted(id string, stageID string, workerID string, extras *map[string]any) *Event {
+func NewEventItemProcessStarted(id string, stageID string, workerID string, extras map[string]any) *Event {
 	metadata := createMetadata(extras, 2)
 	metadata[stageIDKey] = stageID
 	metadata[workerIDKey] = workerID
 
-	return &Event{id, ItemProcessStarted, time.Now(), &metadata}
+	return &Event{id, ItemProcessStarted, time.Now(), metadata}
 }
 
-func NewEventItemProcessed(id string, stageID string, workerID string, extras *map[string]any) *Event {
+func NewEventItemProcessed(id string, stageID string, workerID string, extras map[string]any) *Event {
 	metadata := createMetadata(extras, 2)
 	metadata[stageIDKey] = stageID
 	metadata[workerIDKey] = workerID
 
-	return &Event{id, ItemProcessed, time.Now(), &metadata}
+	return &Event{id, ItemProcessed, time.Now(), metadata}
 }
 
-func NewEventItemProcessFailed(id string, stageID string, workerID string, err error, extras *map[string]any) *ErrorEvent {
+func NewEventItemProcessFailed(id string, stageID string, workerID string, err error, extras map[string]any) *ErrorEvent {
 	metadata := createMetadata(extras, 2)
 	metadata[stageIDKey] = stageID
 	metadata[workerIDKey] = workerID
 
 	return &ErrorEvent{
-		Event{id, ItemFailed, time.Now(), &metadata},
+		Event{id, ItemFailed, time.Now(), metadata},
 		err,
 	}
 }

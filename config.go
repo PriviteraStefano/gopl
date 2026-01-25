@@ -48,7 +48,7 @@ func (c *Config) WithContext(ctx context.Context) *Config {
 	return c
 }
 
-func EmitEvent(config *Config, event Eventful) {
+func (config *Config) EmitEvent(event Eventful) {
 	if config == nil || config.Observer == nil {
 		return
 	}

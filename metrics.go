@@ -2,6 +2,7 @@ package pipeline
 
 import (
 	"context"
+	"maps"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -66,7 +67,7 @@ type StructuralEvent struct {
 	ID        string
 	ParentID  string
 	Timestamp time.Time
-	Data      map[string]interface{}
+	Data      map[string]any
 }
 
 // MetricsCollector collects and tracks pipeline execution metrics
@@ -125,7 +126,7 @@ func NewMetricsCollector(config *Config) *MetricsCollector {
 }
 
 // Helper function to extract string from metadata
-func getMetadataString(metadata map[string]interface{}, key string) string {
+func getMetadataString(metadata map[string]any, key string) string {
 	if val, ok := metadata[key]; ok {
 		if str, ok := val.(string); ok {
 			return str
@@ -155,7 +156,7 @@ func (mc *MetricsCollector) OnEvent(ctx context.Context, event Eventful) {
 }
 
 // recordProcessed handles item processing (lock-free, high-frequency)
-func (mc *MetricsCollector) recordProcessed(id string, metadata map[string]interface{}) {
+func (mc *MetricsCollector) recordProcessed(id string, metadata map[string]any) {
 	// Update global total (always accurate)
 	mc.totalProcessed.Add(1)
 
@@ -173,7 +174,7 @@ func (mc *MetricsCollector) recordProcessed(id string, metadata map[string]inter
 }
 
 // recordFailed handles item failures (lock-free, high-frequency)
-func (mc *MetricsCollector) recordFailed(id string, metadata map[string]interface{}) {
+func (mc *MetricsCollector) recordFailed(id string, metadata map[string]any) {
 	mc.totalFailed.Add(1)
 
 	if stageID := getMetadataString(metadata, stageIDKey); stageID != "" {
@@ -348,7 +349,7 @@ func (mc *MetricsCollector) aggregate() {
 	defer mc.globalMu.Unlock()
 
 	// Aggregate stage counters
-	mc.stageCounters.Range(func(key, value interface{}) bool {
+	mc.stageCounters.Range(func(key, value any) bool {
 		stageID := key.(string)
 		counters := value.(*LocalCounters)
 
@@ -361,7 +362,7 @@ func (mc *MetricsCollector) aggregate() {
 	})
 
 	// Aggregate worker counters
-	mc.workerCounters.Range(func(key, value interface{}) bool {
+	mc.workerCounters.Range(func(key, value any) bool {
 		workerID := key.(string)
 		counters := value.(*LocalCounters)
 
@@ -379,7 +380,7 @@ func (mc *MetricsCollector) aggregate() {
 	})
 
 	// Aggregate router counters
-	mc.routerCounters.Range(func(key, value interface{}) bool {
+	mc.routerCounters.Range(func(key, value any) bool {
 		routerID := key.(string)
 		counters := value.(*LocalCounters)
 
@@ -450,9 +451,7 @@ func (mc *MetricsCollector) GetMetrics() ExecutionMetrics {
 	for k, v := range mc.globalMetrics.StagesMetrics {
 		sm := v
 		sm.WorkersMetrics = make(map[string]WorkerMetrics)
-		for wk, wv := range v.WorkersMetrics {
-			sm.WorkersMetrics[wk] = wv
-		}
+		maps.Copy(sm.WorkersMetrics, v.WorkersMetrics)
 		metrics.StagesMetrics[k] = sm
 	}
 
@@ -460,9 +459,7 @@ func (mc *MetricsCollector) GetMetrics() ExecutionMetrics {
 	for k, v := range mc.globalMetrics.RoutersMetrics {
 		rm := v
 		rm.PathCounter = make(map[string]int64)
-		for pk, pv := range v.PathCounter {
-			rm.PathCounter[pk] = pv
-		}
+		maps.Copy(rm.PathCounter, v.PathCounter)
 		metrics.RoutersMetrics[k] = rm
 	}
 
