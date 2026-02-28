@@ -31,7 +31,7 @@ func TestMetricsCollector_OnEvent_ItemProcessed(t *testing.T) {
 	// Now send the item event
 	itemEvent := &Event{
 		ID:       "item1",
-		Type:     ItemProcessed,
+		Type:     ProcessCompleted,
 		Time:     time.Now(),
 		Metadata: map[string]any{stageIDKey: "stage1", workerIDKey: "worker1"}, // Link to stage and worker
 	}
@@ -56,7 +56,7 @@ func TestMetricsCollector_OnEvent_ItemFailed(t *testing.T) {
 
 	event := &Event{
 		ID:       "item1",
-		Type:     ItemFailed,
+		Type:     ProcessFailed,
 		Time:     time.Now(),
 		Metadata: map[string]any{stageIDKey: "stage1"},
 	}
@@ -111,7 +111,7 @@ func TestMetricsCollector_GetRealtimeTotals(t *testing.T) {
 
 	event := &Event{
 		ID:       "item1",
-		Type:     ItemProcessed,
+		Type:     ProcessCompleted,
 		Time:     time.Now(),
 		Metadata: map[string]any{},
 	}

@@ -142,9 +142,9 @@ func (mc *MetricsCollector) OnEvent(ctx context.Context, event Eventful) {
 
 	switch eventType {
 	// High-frequency events: update atomic counters (lock-free, instant)
-	case ItemProcessed:
+	case ProcessCompleted:
 		mc.recordProcessed(event.GetID(), metadata)
-	case ItemFailed:
+	case ProcessFailed:
 		mc.recordFailed(event.GetID(), metadata)
 
 	// Low-frequency structural events: send to channel
@@ -220,7 +220,7 @@ func getParentId(event Eventful) string {
 	switch event.GetType() {
 	case WorkerStarted, WorkerCompleted:
 		parentId = getMetadataString(event.GetMetadata(), stageIDKey)
-	case ItemProcessStarted, ItemFailed, ItemProcessed:
+	case ProcessStarted, ProcessFailed, ProcessCompleted:
 		parentId = getMetadataString(event.GetMetadata(), workerIDKey)
 	default:
 		parentId = ""

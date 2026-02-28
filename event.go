@@ -13,13 +13,13 @@ type EventType string
 
 const (
 	// Stage events
-	StageStarted       EventType = "stage_started"
-	StageCompleted     EventType = "stage_finished"
-	WorkerStarted      EventType = "worker_started"
-	WorkerCompleted    EventType = "worker_finished"
-	ItemProcessStarted EventType = "item_process_started"
-	ItemProcessed      EventType = "item_processed"
-	ItemFailed         EventType = "item_failed"
+	StageStarted     EventType = "stage_started"
+	StageCompleted   EventType = "stage_finished"
+	WorkerStarted    EventType = "worker_started"
+	WorkerCompleted  EventType = "worker_finished"
+	ProcessStarted   EventType = "item_process_started"
+	ProcessCompleted EventType = "item_processed"
+	ProcessFailed    EventType = "item_failed"
 
 	// Router events
 	RouterStarted   EventType = "router_started"
@@ -141,29 +141,29 @@ func NewEventWorkerCompleted(id string, stageID string, extras map[string]any) *
 }
 
 // ITEM EVENTS
-func NewEventItemProcessStarted(id string, stageID string, workerID string, extras map[string]any) *Event {
+func NewEventProcessStarted(id string, stageID string, workerID string, extras map[string]any) *Event {
 	metadata := createMetadata(extras, 2)
 	metadata[stageIDKey] = stageID
 	metadata[workerIDKey] = workerID
 
-	return &Event{id, ItemProcessStarted, time.Now(), metadata}
+	return &Event{id, ProcessStarted, time.Now(), metadata}
 }
 
-func NewEventItemProcessed(id string, stageID string, workerID string, extras map[string]any) *Event {
+func NewEventProcessCompleted(id string, stageID string, workerID string, extras map[string]any) *Event {
 	metadata := createMetadata(extras, 2)
 	metadata[stageIDKey] = stageID
 	metadata[workerIDKey] = workerID
 
-	return &Event{id, ItemProcessed, time.Now(), metadata}
+	return &Event{id, ProcessCompleted, time.Now(), metadata}
 }
 
-func NewEventItemProcessFailed(id string, stageID string, workerID string, err error, extras map[string]any) *ErrorEvent {
+func NewEventProcessFailed(id string, stageID string, workerID string, err error, extras map[string]any) *ErrorEvent {
 	metadata := createMetadata(extras, 2)
 	metadata[stageIDKey] = stageID
 	metadata[workerIDKey] = workerID
 
 	return &ErrorEvent{
-		Event{id, ItemFailed, time.Now(), metadata},
+		Event{id, ProcessFailed, time.Now(), metadata},
 		err,
 	}
 }

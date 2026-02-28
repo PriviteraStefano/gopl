@@ -57,7 +57,7 @@ func TestMultiObserver_OnEvent(t *testing.T) {
 	obs2 := ObserverFunc(func(ctx context.Context, event Eventful) { called[1] = true })
 
 	multi := NewMultiObserver(obs1, obs2)
-	event := &Event{ID: "test", Type: ItemProcessed, Time: time.Now()}
+	event := &Event{ID: "test", Type: ProcessCompleted, Time: time.Now()}
 	multi.OnEvent(context.Background(), event)
 
 	if !called[0] || !called[1] {
@@ -71,7 +71,7 @@ func TestMultiObserver_Add(t *testing.T) {
 	obs := ObserverFunc(func(ctx context.Context, event Eventful) { called = true })
 	multi.Add(obs)
 
-	event := &Event{ID: "test", Type: ItemProcessed, Time: time.Now()}
+	event := &Event{ID: "test", Type: ProcessCompleted, Time: time.Now()}
 	multi.OnEvent(context.Background(), event)
 
 	if !called {
@@ -82,7 +82,7 @@ func TestMultiObserver_Add(t *testing.T) {
 func TestNoOpObserver_OnEvent(t *testing.T) {
 	obs := NoOpObserver{}
 	// Should not panic
-	obs.OnEvent(context.Background(), &Event{ID: "test", Type: ItemProcessed, Time: time.Now()})
+	obs.OnEvent(context.Background(), &Event{ID: "test", Type: ProcessCompleted, Time: time.Now()})
 }
 
 func TestLoggerObserver_OnEvent(t *testing.T) {
@@ -93,7 +93,7 @@ func TestLoggerObserver_OnEvent(t *testing.T) {
 
 	// Test different event types
 	events := []Eventful{
-		&Event{ID: "1", Type: ItemProcessed, Time: time.Now(), Metadata: map[string]any{"key": "value"}},
+		&Event{ID: "1", Type: ProcessCompleted, Time: time.Now(), Metadata: map[string]any{"key": "value"}},
 		&DebugEvent{Event: Event{ID: "2", Type: DebugEventType, Time: time.Now()}, Message: "debug"},
 		&WarningEvent{Event: Event{ID: "3", Type: WarningEventType, Time: time.Now()}, Warning: "warn"},
 		&ErrorEvent{Event: Event{ID: "4", Type: ErrorEventType, Time: time.Now()}, Error: &testError{msg: "err"}},
@@ -105,9 +105,9 @@ func TestLoggerObserver_OnEvent(t *testing.T) {
 
 	output := buf.String()
 	if !strings.Contains(output, "ID=1") ||
-		!strings.Contains(output, "debug") ||
-		!strings.Contains(output, "warn") ||
-		!strings.Contains(output, "err") {
+		!strings.Contains(output, "DEBUG") ||
+		!strings.Contains(output, "WARN") ||
+		!strings.Contains(output, "ERROR") {
 		t.Error("Expected event details in log")
 	}
 }
