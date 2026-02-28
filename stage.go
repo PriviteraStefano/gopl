@@ -31,11 +31,10 @@ func StartStageWithErr[I, O any](
 	stageWg.Add(workers)
 
 	// Initialize stage workers
-	for i := range workers {
+	for _ = range workers {
 		go func() {
 			defer stageWg.Done()
 			for item := range ch {
-				fmt.Printf("worker %d starts stage %s\n", i, id)
 				result, err := fn(item)
 				if err != nil {
 					ec <- fmt.Errorf("%s stage processing error | %w", id, err)
@@ -193,7 +192,6 @@ type ProcessConfig[I Identifier, O Identifier] struct {
 
 func StartProcess[I Identifier, O Identifier](pc ProcessConfig[I, O]) {
 	pc.cfg.EmitEvent(NewEventProcessStarted(pc.Item.GetID(), strconv.Itoa(pc.WorkerId), pc.StageId, nil))
-	fmt.Printf("worker %d starts stage %s\n", pc.WorkerId, pc.StageId)
 	result, err := pc.fn(pc.Item)
 	if err != nil {
 		pc.cfg.EmitEvent(NewEventProcessFailed(pc.Item.GetID(), strconv.Itoa(pc.WorkerId), pc.StageId, err, nil))
