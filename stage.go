@@ -1,20 +1,21 @@
 package pipeline
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"sync"
-	"errors"
 )
 
-// StartStageWithErr starts a stage with error handling
+// StartStageWithErr starts a stage with error handling using a raw error channel.
+// Items that fail processing are sent to ec; successful results are forwarded to
+// the returned channel.
 func StartStageWithErr[I, O any](
 	id string,
 	workers int,
 	fn func(I) (O, error),
 	ec chan error, c ...<-chan I,
 ) <-chan O {
-	// Validate input channels
 	if len(c) == 0 {
 		ec <- fmt.Errorf("no input channels provided")
 		return nil
@@ -26,13 +27,11 @@ func StartStageWithErr[I, O any](
 		ch = Merge(c...)
 	}
 
-	// Setup stage workers
 	out := make(chan O, workers)
 	var stageWg sync.WaitGroup
 	stageWg.Add(workers)
 
-	// Initialize stage workers
-	for _ = range workers {
+	for range workers {
 		go func() {
 			defer stageWg.Done()
 			for item := range ch {
@@ -46,7 +45,6 @@ func StartStageWithErr[I, O any](
 		}()
 	}
 
-	// Close the output channel when stage workers are done
 	go func() {
 		stageWg.Wait()
 		close(out)
@@ -55,12 +53,13 @@ func StartStageWithErr[I, O any](
 	return out
 }
 
+// StageConfig holds all configuration and state needed to run a single stage.
 type StageConfig[I Identifier, O Identifier] struct {
-	cfg     *Config
-	Workers int
-	StageId string
-	fn      func(I) (O, error)
-	channels       []<-chan I
+	cfg      *Config
+	Workers  int
+	StageId  string
+	fn       func(I) (O, error)
+	channels []<-chan I
 }
 
 // NewStageConfig creates a new StageConfig with the given parameters.
@@ -72,36 +71,34 @@ func NewStageConfig[I Identifier, O Identifier](
 	channels ...<-chan I,
 ) StageConfig[I, O] {
 	return StageConfig[I, O]{
-		cfg:     cfg,
-		StageId: stageId,
-		Workers: workers,
-		fn:      fn,
+		cfg:      cfg,
+		StageId:  stageId,
+		Workers:  workers,
+		fn:       fn,
 		channels: channels,
 	}
 }
 
+// Start launches the stage and returns its output channel.
 func (sc *StageConfig[I, O]) Start() (<-chan O, error) {
 	if len(sc.channels) == 0 {
 		return nil, fmt.Errorf("no input channels provided")
 	}
-	
+
 	sc.cfg.EmitEvent(NewEventStageStarted(sc.StageId, sc.Workers, nil))
-	// Setup stage workers
 	out := make(chan O, sc.Workers)
 	var stageWg sync.WaitGroup
 	stageWg.Add(sc.Workers)
 
-	// Initialize stage workers
 	for workerId := 0; workerId < sc.Workers; workerId++ {
 		go StartWorker(WorkerConfig[I, O]{
-			StageConfig: sc,
+			StageConfig: *sc,
 			WorkerId:    workerId,
 			StageWg:     &stageWg,
 			Out:         out,
 		})
 	}
 
-	// Close the output channel when stage workers are done
 	go func() {
 		stageWg.Wait()
 		close(out)
@@ -111,21 +108,39 @@ func (sc *StageConfig[I, O]) Start() (<-chan O, error) {
 	return out, nil
 }
 
-func StartStage[I Identifier, O Identifier](sc StageConfig[I, O]) (<-chan O, error) {
-	// Validate input channels
+// StartStage is the primary convenience entry-point. It accepts the stage
+// parameters directly and starts the stage, returning the output channel.
+//
+// Both I and O must satisfy Identifier.
+//
+// Example:
+//
+//	out, err := StartStage(cfg, "enrich", 2, enrichFn, inputCh)
+func StartStage[I Identifier, O Identifier](
+	cfg *Config,
+	stageId string,
+	workers int,
+	fn func(I) (O, error),
+	channels ...<-chan I,
+) (<-chan O, error) {
+	sc := NewStageConfig(cfg, stageId, workers, fn, channels...)
+	return StartStageConfig(sc)
+}
+
+// StartStageConfig starts a stage from a pre-built StageConfig value.
+// This is useful when you construct the config separately (e.g. via
+// NewStageConfig or StageBuilder) before launching.
+func StartStageConfig[I Identifier, O Identifier](sc StageConfig[I, O]) (<-chan O, error) {
 	if len(sc.channels) == 0 {
 		return nil, fmt.Errorf("no input channels provided")
 	}
 
-	// Emit stage started event
 	sc.cfg.EmitEvent(NewEventStageStarted(sc.StageId, sc.Workers, nil))
 
-	// Setup stage workers
 	out := make(chan O, sc.Workers)
 	var stageWg sync.WaitGroup
 	stageWg.Add(sc.Workers)
 
-	// Initialize stage workers
 	for workerId := 0; workerId < sc.Workers; workerId++ {
 		go StartWorker(WorkerConfig[I, O]{
 			StageConfig: sc,
@@ -135,7 +150,6 @@ func StartStage[I Identifier, O Identifier](sc StageConfig[I, O]) (<-chan O, err
 		})
 	}
 
-	// Close the output channel when stage workers are done
 	go func() {
 		stageWg.Wait()
 		close(out)
@@ -145,6 +159,7 @@ func StartStage[I Identifier, O Identifier](sc StageConfig[I, O]) (<-chan O, err
 	return out, nil
 }
 
+// WorkerConfig bundles everything a single worker goroutine needs.
 type WorkerConfig[I Identifier, O Identifier] struct {
 	StageConfig[I, O]
 	WorkerId int
@@ -152,6 +167,7 @@ type WorkerConfig[I Identifier, O Identifier] struct {
 	Out      chan O
 }
 
+// StartWorker runs a single worker goroutine for a stage.
 func StartWorker[I Identifier, O Identifier](wc WorkerConfig[I, O]) {
 	var ch <-chan I
 	if len(wc.channels) == 1 {
@@ -162,7 +178,7 @@ func StartWorker[I Identifier, O Identifier](wc WorkerConfig[I, O]) {
 	wc.cfg.EmitEvent(NewEventWorkerStarted(strconv.Itoa(wc.WorkerId), wc.StageId, nil))
 	defer wc.StageWg.Done()
 	select {
-	case <-wc.cfg.Context.Done():
+	case <-wc.cfg.ctx().Done():
 		return
 	default:
 		for item := range ch {
@@ -172,11 +188,13 @@ func StartWorker[I Identifier, O Identifier](wc WorkerConfig[I, O]) {
 	}
 }
 
+// ProcessConfig bundles everything needed to process a single item.
 type ProcessConfig[I Identifier, O Identifier] struct {
 	WorkerConfig[I, O]
 	Item I
 }
 
+// StartProcess processes a single item through the stage function.
 func StartProcess[I Identifier, O Identifier](pc ProcessConfig[I, O]) {
 	pc.cfg.EmitEvent(NewEventProcessStarted(pc.Item.GetID(), strconv.Itoa(pc.WorkerId), pc.StageId, nil))
 	result, err := pc.fn(pc.Item)
@@ -188,14 +206,18 @@ func StartProcess[I Identifier, O Identifier](pc ProcessConfig[I, O]) {
 	pc.Out <- result
 }
 
+// ─── StageBuilder ────────────────────────────────────────────────────────────
+
+// StageBuilder provides a fluent API for constructing a StageConfig.
 type StageBuilder[I Identifier, O Identifier] struct {
-	cfg     *Config
-	workers int
-	stageId string
-	fn      func(I) (O, error)
-	channels       []<-chan I
+	cfg      *Config
+	workers  int
+	stageId  string
+	fn       func(I) (O, error)
+	channels []<-chan I
 }
 
+// NewStageBuilder returns an empty StageBuilder.
 func NewStageBuilder[I Identifier, O Identifier]() *StageBuilder[I, O] {
 	return &StageBuilder[I, O]{}
 }
@@ -235,7 +257,7 @@ func (b *StageBuilder[I, O]) AddChannels(channels ...<-chan I) *StageBuilder[I, 
 	return b
 }
 
-
+// Build validates all required fields and returns a StageConfig ready to start.
 func (b *StageBuilder[I, O]) Build() (*StageConfig[I, O], error) {
 	if b.cfg == nil {
 		return nil, errors.New("config not set")
@@ -253,10 +275,10 @@ func (b *StageBuilder[I, O]) Build() (*StageConfig[I, O], error) {
 		return nil, errors.New("no channels")
 	}
 	return &StageConfig[I, O]{
-		cfg:     b.cfg,
-		StageId: b.stageId,
-		Workers: b.workers,
-		fn:      b.fn,
-		channels:       b.channels,
+		cfg:      b.cfg,
+		StageId:  b.stageId,
+		Workers:  b.workers,
+		fn:       b.fn,
+		channels: b.channels,
 	}, nil
 }

@@ -84,7 +84,7 @@ func demoStage(cfg *pipeline.Config) {
 	})
 
 	// Stage 1 – enrich orders with a computed Total
-	enriched, err := pipeline.StartStage(pipeline.NewStageConfig(
+	enriched, err := pipeline.StartStageConfig(pipeline.NewStageConfig(
 		cfg,
 		"enrich",
 		2,
@@ -105,7 +105,7 @@ func demoStage(cfg *pipeline.Config) {
 	}
 
 	// Stage 2 – format enriched orders as a human-readable StringItem
-	formatted, err := pipeline.StartStage(pipeline.NewStageConfig(
+	formatted, err := pipeline.StartStageConfig(pipeline.NewStageConfig(
 		cfg,
 		"format",
 		2,
@@ -416,7 +416,7 @@ func demoObserver() {
 		{ID: "x3", Product: "Gamma", Quantity: 3, Price: 30},
 	})
 
-	out, err := pipeline.StartStage(pipeline.NewStageConfig(
+	out, err := pipeline.StartStageConfig(pipeline.NewStageConfig(
 		cfg,
 		"observed-stage",
 		1,
@@ -460,7 +460,7 @@ func demoMetrics() {
 	}
 	close(source)
 
-	out, err := pipeline.StartStage(pipeline.NewStageConfig(
+	out, err := pipeline.StartStageConfig(pipeline.NewStageConfig(
 		cfg,
 		"metrics-stage",
 		3,
@@ -513,7 +513,7 @@ func demoMultiObserver() {
 		{ID: "mo-2", Product: "Item-B", Quantity: 2, Price: 10},
 	})
 
-	out, _ := pipeline.StartStage(pipeline.NewStageConfig(
+	out, _ := pipeline.StartStageConfig(pipeline.NewStageConfig(
 		cfg,
 		"multi-obs-stage",
 		1,
@@ -559,7 +559,7 @@ func demoLoggers() {
 	source := sendOrders([]Order{
 		{ID: "lg-1", Product: "Alpha", Quantity: 1, Price: 1},
 	})
-	out, _ := pipeline.StartStage(pipeline.NewStageConfig(
+	out, _ := pipeline.StartStageConfig(pipeline.NewStageConfig(
 		cfg,
 		"logger-obs-stage",
 		1,
@@ -602,7 +602,7 @@ func demoContextCancellation() {
 		}
 	}()
 
-	out, _ := pipeline.StartStage(pipeline.NewStageConfig(
+	out, _ := pipeline.StartStageConfig(pipeline.NewStageConfig(
 		cfg,
 		"cancellable-stage",
 		2,

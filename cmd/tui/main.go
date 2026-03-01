@@ -1095,7 +1095,7 @@ func runDemoPipeline(cfg *pipeline.Config) {
 		return
 	}
 	
-	enriched, err := pipeline.StartStage(*validateStage)
+	enriched, err := pipeline.StartStageConfig(*validateStage)
 	if err != nil {
 		return
 	}
@@ -1115,7 +1115,7 @@ func runDemoPipeline(cfg *pipeline.Config) {
 		Build()
 	
 
-	persisted, err := pipeline.StartStage(*persistStage)
+	persisted, err := pipeline.StartStageConfig(*persistStage)
 	if err != nil {
 		return
 	}

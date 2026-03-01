@@ -48,10 +48,20 @@ func (c *Config) WithContext(ctx context.Context) *Config {
 	return c
 }
 
+// ctx returns the config's context, falling back to context.Background() when
+// the Context field has not been set (e.g. a Config created via a struct
+// literal without the Context field).
+func (config *Config) ctx() context.Context {
+	if config == nil || config.Context == nil {
+		return context.Background()
+	}
+	return config.Context
+}
+
 func (config *Config) EmitEvent(event Eventful) {
 	if config == nil || config.Observer == nil {
 		return
 	}
 
-	config.Observer.OnEvent(config.Context, event)
+	config.Observer.OnEvent(config.ctx(), event)
 }

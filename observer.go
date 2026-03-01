@@ -105,14 +105,17 @@ func NewLoggerObserver(logger Logger) *LoggerObserver {
 	return &LoggerObserver{logger: logger}
 }
 
-func createArgs(event Eventful, length int) (args []any) {
-	args = make([]any, length+6)
-	args[length] = IdKey
-	args[length+1] = event.GetID()
-	args[length+2] = TypeKey
-	args[length+3] = event.GetType()
-	args[length+4] = TimeKey
-	args[length+5] = event.GetTime()
+func createArgs(event Eventful, metadataLen int) (args []any) {
+	// Each metadata entry needs 2 slots (key + value); the fixed fields
+	// (ID, type, timestamp) need 6 more slots at the end.
+	metadataSlots := metadataLen * 2
+	args = make([]any, metadataSlots+6)
+	args[metadataSlots] = IdKey
+	args[metadataSlots+1] = event.GetID()
+	args[metadataSlots+2] = TypeKey
+	args[metadataSlots+3] = event.GetType()
+	args[metadataSlots+4] = TimeKey
+	args[metadataSlots+5] = event.GetTime()
 
 	idx := 0
 	for k, v := range event.GetMetadata() {
