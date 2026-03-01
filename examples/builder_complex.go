@@ -15,7 +15,7 @@
 //
 // Run with:
 //
-//	go run pipeline/examples/builder_complex.go
+//	go run gopl/examples/builder_complex.go
 package main
 
 import (
@@ -27,7 +27,7 @@ import (
 	"strings"
 	"time"
 
-	"pipeline"
+	"gopl"
 )
 
 // ─── Domain types ─────────────────────────────────────────────────────────────
@@ -208,9 +208,9 @@ func demonstrateCycleDetection() {
 	// nodeX references nodeY which isn't registered yet, and nodeY references
 	// nodeX — Validate() reports unknown inputIDs and detects the cycle.
 	fmt.Println("  Demo 1: mutual dependency  (nodeX → nodeY → nodeX)")
-	pb1 := pipeline.NewPipelineBuilder(nil)
-	pipeline.AddStage(pb1, "nodeX", 1, fn2, "nodeY") // nodeY not yet registered
-	pipeline.AddStage(pb1, "nodeY", 1, fn3, "nodeX") // back-reference to nodeX
+	pb1 := gopl.NewPipelineBuilder(nil)
+	gopl.AddStage(pb1, "nodeX", 1, fn2, "nodeY") // nodeY not yet registered
+	gopl.AddStage(pb1, "nodeY", 1, fn3, "nodeX") // back-reference to nodeX
 
 	vr1 := pb1.Validate()
 	if vr1.IsValid {
@@ -228,17 +228,17 @@ func demonstrateCycleDetection() {
 	// the Edges map (accessible for testing/demos) to simulate a cycle.
 	// Validate() catches it via the 3-colour DFS cycle detector.
 	fmt.Println("  Demo 2: injected back-edge (A → B → C, plus B → A)")
-	pb2 := pipeline.NewPipelineBuilder(nil)
+	pb2 := gopl.NewPipelineBuilder(nil)
 	fn := func(r RawEvent) (ParsedEvent, error) { return ParsedEvent{ID: r.ID}, nil }
-	pipeline.AddStage(pb2, "A", 1, fn)
-	pipeline.AddStageAfter(pb2, "B", 1, fn2, "A")
-	pipeline.AddStageAfter(pb2, "C", 1, fn3, "B")
+	gopl.AddStage(pb2, "A", 1, fn)
+	gopl.AddStageAfter(pb2, "B", 1, fn2, "A")
+	gopl.AddStageAfter(pb2, "C", 1, fn3, "B")
 
 	// Inject the back-edge manually through the exported Edges snapshot's
 	// underlying builder by re-registering the edge directly on the builder.
 	// We use AddStage with a duplicate ID to trigger the registration error
 	// path, which also shows how all errors are collected together.
-	pipeline.AddStageAfter(pb2, "A", 1, fn2, "C") // duplicate ID — registration error
+	gopl.AddStageAfter(pb2, "A", 1, fn2, "C") // duplicate ID — registration error
 
 	vr2 := pb2.Validate()
 	if vr2.IsValid {
@@ -260,7 +260,7 @@ func main() {
 
 	// ── 2. Build the real (valid) diamond pipeline ────────────────────────────
 	fmt.Println("╔══════════════════════════════════════════════════════════╗")
-	fmt.Println("║              DIAMOND DAG PIPELINE                       ║")
+	fmt.Println("║              DIAMOND DAG PIPELINE                        ║")
 	fmt.Println("╚══════════════════════════════════════════════════════════╝")
 	fmt.Println()
 	fmt.Println("  Topology:")
@@ -273,21 +273,21 @@ func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
 		Level: slog.LevelInfo,
 	}))
-	cfg := pipeline.DefaultConfigWithSlog(logger)
+	cfg := gopl.DefaultConfigWithSlog(logger)
 
-	pb := pipeline.NewPipelineBuilder(cfg)
+	pb := gopl.NewPipelineBuilder(cfg)
 
 	// Stage 1: parse raw events (source stage).
-	pipeline.AddStage(pb, "parse", 2, parseEvent)
+	gopl.AddStage(pb, "parse", 2, parseEvent)
 
 	// Stage 2: score events — one of the diamond's two arms.
-	pipeline.AddStageAfter(pb, "score", 2, scoreEvent, "parse")
+	gopl.AddStageAfter(pb, "score", 2, scoreEvent, "parse")
 
 	// Stage 3: merge / finalise scored events.
 	// In a full diamond both arms would feed here; for type-system simplicity
 	// this example has the merge consume only the scored channel.  See
 	// builder_branching.go for the full fan-in with a router.
-	pipeline.AddStageAfter(pb, "merge", 2, mergeRecords, "score")
+	gopl.AddStageAfter(pb, "merge", 2, mergeRecords, "score")
 
 	// ── Validate ──────────────────────────────────────────────────────────────
 	vr := pb.Validate()
@@ -321,7 +321,7 @@ func main() {
 	}
 
 	// ── Collect results ───────────────────────────────────────────────────────
-	results, err := pipeline.CollectAll[FinalRecord](handle.Results(), "merge")
+	results, err := gopl.CollectAll[FinalRecord](handle.Results(), "merge")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "CollectAll error: %v\n", err)
 		os.Exit(1)

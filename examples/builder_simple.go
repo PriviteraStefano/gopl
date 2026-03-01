@@ -15,7 +15,7 @@ import (
 	"log/slog"
 	"os"
 
-	"pipeline"
+	"gopl"
 )
 
 // ─── Domain types ─────────────────────────────────────────────────────────────
@@ -44,19 +44,19 @@ func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
 		Level: slog.LevelDebug,
 	}))
-	cfg := pipeline.DefaultConfigWithSlog(logger)
+	cfg := gopl.DefaultConfigWithSlog(logger)
 
 	// ── Build the pipeline ────────────────────────────────────────────────────
 	//
 	//   [feeder] ──▶ [double] ──▶ [increment] ──▶ results
 	//
-	pb := pipeline.NewPipelineBuilder(cfg)
+	pb := gopl.NewPipelineBuilder(cfg)
 
 	// Stage 1: double each value (source stage — fed externally).
-	pipeline.AddStage(pb, "double", 2, doubleValue)
+	gopl.AddStage(pb, "double", 2, doubleValue)
 
 	// Stage 2: increment each value, chained after "double".
-	pipeline.AddStageAfter(pb, "increment", 2, incrementValue, "double")
+	gopl.AddStageAfter(pb, "increment", 2, incrementValue, "double")
 
 	// ── Validate before building (optional but recommended) ───────────────────
 	if vr := pb.Validate(); !vr.IsValid {
@@ -86,7 +86,7 @@ func main() {
 	}
 
 	// ── Collect results ───────────────────────────────────────────────────────
-	results, err := pipeline.CollectAll[Number](handle.Results(), "increment")
+	results, err := gopl.CollectAll[Number](handle.Results(), "increment")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "CollectAll error: %v\n", err)
 		os.Exit(1)

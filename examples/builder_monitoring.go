@@ -25,7 +25,7 @@ import (
 	"strings"
 	"time"
 
-	"pipeline"
+	"gopl"
 )
 
 // ─── Domain types ─────────────────────────────────────────────────────────────
@@ -167,25 +167,25 @@ func main() {
 	slogLogger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
 		Level: slog.LevelDebug,
 	}))
-	logger := pipeline.NewSlogLogger(slogLogger)
+	logger := gopl.NewSlogLogger(slogLogger)
 
 	// LoggerObserver forwards every pipeline event to the structured logger.
-	loggerObserver := pipeline.NewLoggerObserver(logger)
+	loggerObserver := gopl.NewLoggerObserver(logger)
 
 	// MetricsCollector gathers counters, timings, and per-stage breakdowns.
-	baseCfg := &pipeline.Config{
+	baseCfg := &gopl.Config{
 		Logger:   logger,
-		Observer: pipeline.NoOpObserver{}, // placeholder; replaced below
+		Observer: gopl.NoOpObserver{}, // placeholder; replaced below
 		Context:  context.Background(),
 	}
-	metricsCollector := pipeline.NewMetricsCollector(baseCfg)
+	metricsCollector := gopl.NewMetricsCollector(baseCfg)
 	defer metricsCollector.Close()
 
 	// Combine both observers so every event reaches the logger AND the metrics
 	// collector simultaneously.
-	multiObs := pipeline.NewMultiObserver(loggerObserver, metricsCollector)
+	multiObs := gopl.NewMultiObserver(loggerObserver, metricsCollector)
 
-	cfg := pipeline.DefaultConfig().
+	cfg := gopl.DefaultConfig().
 		WithLogger(logger).
 		WithObserver(multiObs)
 
@@ -193,11 +193,11 @@ func main() {
 	//
 	//   [feeder] ──▶ [parse:2] ──▶ [enrich:4] ──▶ [persist:2] ──▶ results
 	//
-	pb := pipeline.NewPipelineBuilder(cfg)
+	pb := gopl.NewPipelineBuilder(cfg)
 
-	pipeline.AddStage(pb, "parse", 2, parse)
-	pipeline.AddStageAfter(pb, "enrich", 4, enrich, "parse")
-	pipeline.AddStageAfter(pb, "persist", 2, persist, "enrich")
+	gopl.AddStage(pb, "parse", 2, parse)
+	gopl.AddStageAfter(pb, "enrich", 4, enrich, "parse")
+	gopl.AddStageAfter(pb, "persist", 2, persist, "enrich")
 
 	// ── Validate ──────────────────────────────────────────────────────────────
 	if vr := pb.Validate(); !vr.IsValid {
@@ -228,7 +228,7 @@ func main() {
 	}
 
 	// ── Collect results ───────────────────────────────────────────────────────
-	results, err := pipeline.CollectAll[PersistedRecord](handle.Results(), "persist")
+	results, err := gopl.CollectAll[PersistedRecord](handle.Results(), "persist")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "CollectAll error: %v\n", err)
 		os.Exit(1)
@@ -244,9 +244,9 @@ func main() {
 		return results[i].ID < results[j].ID
 	})
 
-	fmt.Printf("\n╔══════════════════════════════════════════════════════════╗\n")
-	fmt.Printf("║                   PIPELINE RESULTS                      ║\n")
-	fmt.Printf("╚══════════════════════════════════════════════════════════╝\n\n")
+	fmt.Printf("╔════════════════════════════════════════════════════════════╗\n")
+	fmt.Printf("║                   PIPELINE RESULTS                         ║\n")
+	fmt.Printf("╚════════════════════════════════════════════════════════════╝\n\n")
 
 	for _, r := range results {
 		fmt.Printf("  [%s] %s\n", r.ID, r.Summary)
@@ -256,9 +256,9 @@ func main() {
 	metrics := metricsCollector.GetMetrics()
 	processed, failed := metricsCollector.GetRealtimeTotals()
 
-	fmt.Printf("\n╔══════════════════════════════════════════════════════════╗\n")
-	fmt.Printf("║                   EXECUTION METRICS                     ║\n")
-	fmt.Printf("╚══════════════════════════════════════════════════════════╝\n\n")
+	fmt.Printf("╔════════════════════════════════════════════════════════════╗\n")
+	fmt.Printf("║                   EXECUTION METRICS                        ║\n")
+	fmt.Printf("╚════════════════════════════════════════════════════════════╝\n\n")
 
 	fmt.Printf("  Wall-clock time:   %v\n", elapsed.Round(time.Millisecond))
 	fmt.Printf("  Items processed:   %d\n", processed)

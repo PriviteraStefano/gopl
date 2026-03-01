@@ -13,7 +13,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"pipeline"
+	"gopl"
 )
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -101,18 +101,18 @@ func (f logFilter) label() string {
 	}
 }
 
-func (f logFilter) accepts(kind pipeline.EventType) bool {
+func (f logFilter) accepts(kind gopl.EventType) bool {
 	switch f {
 	case filterAll:
 		return true
 	case filterErrors:
-		return kind == pipeline.ProcessFailed || kind == pipeline.RouterFailed
+		return kind == gopl.ProcessFailed || kind == gopl.RouterFailed
 	case filterStructural:
-		return kind == pipeline.StageStarted || kind == pipeline.StageCompleted ||
-			kind == pipeline.WorkerStarted || kind == pipeline.WorkerCompleted ||
-			kind == pipeline.RouterStarted || kind == pipeline.RouterCompleted
+		return kind == gopl.StageStarted || kind == gopl.StageCompleted ||
+		kind == gopl.WorkerStarted || kind == gopl.WorkerCompleted ||
+		kind == gopl.RouterStarted || kind == gopl.RouterCompleted
 	case filterItems:
-		return kind == pipeline.ProcessCompleted || kind == pipeline.ProcessFailed
+		return kind == gopl.ProcessCompleted || kind == gopl.ProcessFailed
 	default:
 		return true
 	}
@@ -123,7 +123,7 @@ func (f logFilter) accepts(kind pipeline.EventType) bool {
 // ─────────────────────────────────────────────────────────────────────────────
 
 type eventMsg struct {
-	event pipeline.Eventful
+	event gopl.Eventful
 	ts    time.Time
 }
 
@@ -133,7 +133,7 @@ type TUIObserver struct{ program *tea.Program }
 
 func newTUIObserver(p *tea.Program) *TUIObserver { return &TUIObserver{program: p} }
 
-func (t *TUIObserver) OnEvent(_ context.Context, event pipeline.Eventful) {
+func (t *TUIObserver) OnEvent(_ context.Context, event gopl.Eventful) {
 	t.program.Send(eventMsg{event: event, ts: time.Now()})
 }
 
@@ -180,7 +180,7 @@ const maxLogEntries = 2000
 
 type logEntry struct {
 	ts      time.Time
-	kind    pipeline.EventType
+	kind    gopl.EventType
 	id      string
 	stageID string
 }
@@ -235,7 +235,7 @@ type stageState struct {
 
 type model struct {
 	// pipeline
-	collector  *pipeline.MetricsCollector
+	collector  *gopl.MetricsCollector
 	throughput throughputTracker
 	logRing    logRing
 
@@ -269,7 +269,7 @@ type model struct {
 	stagesCollapsed map[string]bool // collapsed accordion state per stage ID
 }
 
-func newModel(collector *pipeline.MetricsCollector) model {
+func newModel(collector *gopl.MetricsCollector) model {
 	return model{
 		collector:       collector,
 		stages:          make(map[string]*stageState),
@@ -417,37 +417,37 @@ func (m *model) handlePipelineEvent(msg eventMsg) {
 
 	m.stagesMu.Lock()
 	switch et {
-	case pipeline.StageStarted:
+	case gopl.StageStarted:
 		m.stages[e.GetID()] = &stageState{
 			id:        e.GetID(),
 			running:   true,
 			workers:   make(map[string]*workerState),
 			startTime: msg.ts,
 		}
-	case pipeline.StageCompleted:
+	case gopl.StageCompleted:
 		if s, ok := m.stages[e.GetID()]; ok {
 			s.running = false
 			s.endTime = msg.ts
 		}
 		m.pipelineDone = m.allStageDone()
-	case pipeline.WorkerStarted:
+	case gopl.WorkerStarted:
 		if s, ok := m.stages[stageID]; ok {
 			s.workers[e.GetID()] = &workerState{id: e.GetID(), running: true}
 		}
-	case pipeline.WorkerCompleted:
+	case gopl.WorkerCompleted:
 		if s, ok := m.stages[stageID]; ok {
 			if w, ok := s.workers[e.GetID()]; ok {
 				w.running = false
 			}
 		}
-	case pipeline.ProcessCompleted:
+	case gopl.ProcessCompleted:
 		if s, ok := m.stages[stageID]; ok {
 			s.processed++
 			if w, ok := s.workers[workerID]; ok {
 				w.processed++
 			}
 		}
-	case pipeline.ProcessFailed:
+	case gopl.ProcessFailed:
 		if s, ok := m.stages[stageID]; ok {
 			s.failed++
 			if w, ok := s.workers[workerID]; ok {
@@ -458,7 +458,7 @@ func (m *model) handlePipelineEvent(msg eventMsg) {
 	m.stagesMu.Unlock()
 
 	// Push to log ring (skip the very noisy ProcessStarted)
-	if et != pipeline.ProcessStarted {
+	if et != gopl.ProcessStarted {
 		m.logRing.push(logEntry{
 			ts: msg.ts, kind: et, id: e.GetID(), stageID: stageID,
 		})
@@ -1000,25 +1000,25 @@ func metaString(meta map[string]any, key string) string {
 	return ""
 }
 
-func eventKindLabel(et pipeline.EventType) (string, lipgloss.Style) {
+func eventKindLabel(et gopl.EventType) (string, lipgloss.Style) {
 	switch et {
-	case pipeline.StageStarted:
+	case gopl.StageStarted:
 		return "stage started", lipgloss.NewStyle().Foreground(colorAccent)
-	case pipeline.StageCompleted:
+	case gopl.StageCompleted:
 		return "stage done", lipgloss.NewStyle().Foreground(colorGreen)
-	case pipeline.WorkerStarted:
+	case gopl.WorkerStarted:
 		return "worker started", lipgloss.NewStyle().Foreground(colorCyan)
-	case pipeline.WorkerCompleted:
+	case gopl.WorkerCompleted:
 		return "worker done", lipgloss.NewStyle().Foreground(colorDim)
-	case pipeline.ProcessCompleted:
+	case gopl.ProcessCompleted:
 		return "item processed", lipgloss.NewStyle().Foreground(colorGreen)
-	case pipeline.ProcessFailed:
+	case gopl.ProcessFailed:
 		return "item failed", lipgloss.NewStyle().Foreground(colorRed)
-	case pipeline.RouterStarted:
+	case gopl.RouterStarted:
 		return "router started", lipgloss.NewStyle().Foreground(colorMagenta)
-	case pipeline.RouterCompleted:
+	case gopl.RouterCompleted:
 		return "router done", lipgloss.NewStyle().Foreground(colorMagenta)
-	case pipeline.RouterFailed:
+	case gopl.RouterFailed:
 		return "router error", lipgloss.NewStyle().Foreground(colorRed)
 	default:
 		return string(et), lipgloss.NewStyle().Foreground(colorDim)
@@ -1064,7 +1064,7 @@ type EnrichedOrder struct {
 
 func (e EnrichedOrder) GetID() string { return e.ID }
 
-func runDemoPipeline(cfg *pipeline.Config) {
+func runDemoPipeline(cfg *gopl.Config) {
 	const numOrders = 300
 	products := []string{"Widget", "Gadget", "Doohickey", "Thingamajig", "Whatchamacallit"}
 
@@ -1079,7 +1079,7 @@ func runDemoPipeline(cfg *pipeline.Config) {
 	}
 	close(source)
 
-	validateStage, err := pipeline.NewStageBuilder[Order, EnrichedOrder]().
+	validateStage, err := gopl.NewStageBuilder[Order, EnrichedOrder]().
 		WithConfig(cfg).
 		WithStageId("validate").
 		WithWorkers(12).
@@ -1095,27 +1095,27 @@ func runDemoPipeline(cfg *pipeline.Config) {
 		return
 	}
 	
-	enriched, err := pipeline.StartStageConfig(*validateStage)
+	enriched, err := gopl.StartStageConfig(*validateStage)
 	if err != nil {
 		return
 	}
 	
-	persistStage, err := pipeline.NewStageBuilder[EnrichedOrder, pipeline.StringItem]().
+	persistStage, err := gopl.NewStageBuilder[EnrichedOrder, gopl.StringItem]().
 		WithConfig(cfg).
 		WithStageId("persist").
 		WithWorkers(12).
 		WithChannels(enriched).
-		WithFunction(func(e EnrichedOrder) (pipeline.StringItem, error) {
+		WithFunction(func(e EnrichedOrder) (gopl.StringItem, error) {
 			time.Sleep(15 * time.Millisecond)
 			if e.Total > 4000 {
-				return pipeline.StringItem{}, fmt.Errorf("amount too large: %.2f", e.Total)
+				return gopl.StringItem{}, fmt.Errorf("amount too large: %.2f", e.Total)
 			}
-			return pipeline.NewStringItemWithID(e.ID, "saved:"+e.ID), nil
+			return gopl.NewStringItemWithID(e.ID, "saved:"+e.ID), nil
 		}).
 		Build()
 	
 
-	persisted, err := pipeline.StartStageConfig(*persistStage)
+	persisted, err := gopl.StartStageConfig(*persistStage)
 	if err != nil {
 		return
 	}
@@ -1129,8 +1129,8 @@ func runDemoPipeline(cfg *pipeline.Config) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 func main() {
-	cfg := pipeline.DefaultConfig()
-	collector := pipeline.NewMetricsCollector(cfg)
+	cfg := gopl.DefaultConfig()
+	collector := gopl.NewMetricsCollector(cfg)
 	defer collector.Close()
 
 	m := newModel(collector)
@@ -1138,7 +1138,7 @@ func main() {
 	p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseCellMotion())
 
 	tuiObs := newTUIObserver(p)
-	multi := pipeline.NewMultiObserver(collector, tuiObs)
+	multi := gopl.NewMultiObserver(collector, tuiObs)
 	cfg = cfg.WithObserver(multi)
 
 	go runDemoPipeline(cfg)
