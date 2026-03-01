@@ -1079,44 +1079,43 @@ func runDemoPipeline(cfg *pipeline.Config) {
 	}
 	close(source)
 
-	validated, err := pipeline.StartStage(pipeline.NewStageConfig(
-		cfg, "validate", 3,
-		func(o Order) (Order, error) {
-			time.Sleep(8 * time.Millisecond)
-			if o.Quantity == 0 {
-				return Order{}, fmt.Errorf("zero quantity for %s", o.ID)
-			}
-			return o, nil
-		},
-		source,
-	))
-	if err != nil {
-		return
-	}
-
-	enriched, err := pipeline.StartStage(pipeline.NewStageConfig(
-		cfg, "enrich", 4,
-		func(o Order) (EnrichedOrder, error) {
+	validateStage, err := pipeline.NewStageBuilder[Order, EnrichedOrder]().
+		WithConfig(cfg).
+		WithStageId("validate").
+		WithWorkers(12).
+		WithFunction(func(o Order) (EnrichedOrder, error) {
 			time.Sleep(12 * time.Millisecond)
 			return EnrichedOrder{ID: o.ID, Total: float64(o.Quantity) * o.Price}, nil
-		},
-		validated,
-	))
+		}).
+		WithChannels(source).
+		Build()
+
+	if err != nil {
+		panic(fmt.Sprintf("error while setting up validate stage: %v", err))
+		return
+	}
+	
+	enriched, err := pipeline.StartStage(*validateStage)
 	if err != nil {
 		return
 	}
-
-	persisted, err := pipeline.StartStage(pipeline.NewStageConfig(
-		cfg, "persist", 2,
-		func(e EnrichedOrder) (pipeline.StringItem, error) {
+	
+	persistStage, err := pipeline.NewStageBuilder[EnrichedOrder, pipeline.StringItem]().
+		WithConfig(cfg).
+		WithStageId("persist").
+		WithWorkers(12).
+		WithChannels(enriched).
+		WithFunction(func(e EnrichedOrder) (pipeline.StringItem, error) {
 			time.Sleep(15 * time.Millisecond)
 			if e.Total > 4000 {
 				return pipeline.StringItem{}, fmt.Errorf("amount too large: %.2f", e.Total)
 			}
 			return pipeline.NewStringItemWithID(e.ID, "saved:"+e.ID), nil
-		},
-		enriched,
-	))
+		}).
+		Build()
+	
+
+	persisted, err := pipeline.StartStage(*persistStage)
 	if err != nil {
 		return
 	}

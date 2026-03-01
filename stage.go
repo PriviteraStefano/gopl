@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"sync"
+	"errors"
 )
 
 // StartStageWithErr starts a stage with error handling
@@ -54,57 +55,12 @@ func StartStageWithErr[I, O any](
 	return out
 }
 
-// SafeStartStage starts a stage, returns an error if no input channels are provided
-// func StartStage[I, O any](
-// 	name string,
-// 	workers int,
-// 	fn func(I) O,
-// 	c ...<-chan I,
-// ) (<-chan O, error) {
-// 	// Validate input channels
-// 	if len(c) == 0 {
-// 		return nil, fmt.Errorf("no input channels provided")
-// 	}
-// 	var ch <-chan I
-// 	if len(c) == 1 {
-// 		ch = c[0]
-// 	} else {
-// 		ch = Merge(c...)
-// 	}
-
-// 	// Setup stage workers
-// 	out := make(chan O, workers)
-// 	var stageWg sync.WaitGroup
-// 	stageWg.Add(workers)
-
-// 	// Initialize stage workers
-// 	for i := range workers {
-// 		go func() {
-// 			defer stageWg.Done()
-// 			for item := range ch {
-// 				fmt.Printf("worker %d starts stage %s\n", i, name)
-// 				result := fn(item)
-// 				out <- result
-// 			}
-// 		}()
-// 	}
-
-// 	// Close the output channel when stage workers are done
-// 	go func() {
-// 		stageWg.Wait()
-// 		close(out)
-// 	}()
-
-// 	return out, nil
-// }
-//
-
 type StageConfig[I Identifier, O Identifier] struct {
 	cfg     *Config
 	Workers int
 	StageId string
 	fn      func(I) (O, error)
-	c       []<-chan I
+	channels       []<-chan I
 }
 
 // NewStageConfig creates a new StageConfig with the given parameters.
@@ -120,13 +76,44 @@ func NewStageConfig[I Identifier, O Identifier](
 		StageId: stageId,
 		Workers: workers,
 		fn:      fn,
-		c:       channels,
+		channels: channels,
 	}
+}
+
+func (sc *StageConfig[I, O]) Start() (<-chan O, error) {
+	if len(sc.channels) == 0 {
+		return nil, fmt.Errorf("no input channels provided")
+	}
+	
+	sc.cfg.EmitEvent(NewEventStageStarted(sc.StageId, sc.Workers, nil))
+	// Setup stage workers
+	out := make(chan O, sc.Workers)
+	var stageWg sync.WaitGroup
+	stageWg.Add(sc.Workers)
+
+	// Initialize stage workers
+	for workerId := 0; workerId < sc.Workers; workerId++ {
+		go StartWorker(WorkerConfig[I, O]{
+			StageConfig: sc,
+			WorkerId:    workerId,
+			StageWg:     &stageWg,
+			Out:         out,
+		})
+	}
+
+	// Close the output channel when stage workers are done
+	go func() {
+		stageWg.Wait()
+		close(out)
+		sc.cfg.EmitEvent(NewEventStageCompleted(sc.StageId, nil))
+	}()
+
+	return out, nil
 }
 
 func StartStage[I Identifier, O Identifier](sc StageConfig[I, O]) (<-chan O, error) {
 	// Validate input channels
-	if len(sc.c) == 0 {
+	if len(sc.channels) == 0 {
 		return nil, fmt.Errorf("no input channels provided")
 	}
 
@@ -167,10 +154,10 @@ type WorkerConfig[I Identifier, O Identifier] struct {
 
 func StartWorker[I Identifier, O Identifier](wc WorkerConfig[I, O]) {
 	var ch <-chan I
-	if len(wc.c) == 1 {
-		ch = wc.c[0]
+	if len(wc.channels) == 1 {
+		ch = wc.channels[0]
 	} else {
-		ch = Merge(wc.c...)
+		ch = Merge(wc.channels...)
 	}
 	wc.cfg.EmitEvent(NewEventWorkerStarted(strconv.Itoa(wc.WorkerId), wc.StageId, nil))
 	defer wc.StageWg.Done()
@@ -199,4 +186,77 @@ func StartProcess[I Identifier, O Identifier](pc ProcessConfig[I, O]) {
 	}
 	pc.cfg.EmitEvent(NewEventProcessCompleted(pc.Item.GetID(), strconv.Itoa(pc.WorkerId), pc.StageId, nil))
 	pc.Out <- result
+}
+
+type StageBuilder[I Identifier, O Identifier] struct {
+	cfg     *Config
+	workers int
+	stageId string
+	fn      func(I) (O, error)
+	channels       []<-chan I
+}
+
+func NewStageBuilder[I Identifier, O Identifier]() *StageBuilder[I, O] {
+	return &StageBuilder[I, O]{}
+}
+
+func (b *StageBuilder[I, O]) WithConfig(cfg *Config) *StageBuilder[I, O] {
+	b.cfg = cfg
+	return b
+}
+
+func (b *StageBuilder[I, O]) WithChannels(channels ...<-chan I) *StageBuilder[I, O] {
+	b.channels = channels
+	return b
+}
+
+func (b *StageBuilder[I, O]) WithStageId(stageId string) *StageBuilder[I, O] {
+	b.stageId = stageId
+	return b
+}
+
+func (b *StageBuilder[I, O]) WithWorkers(workers int) *StageBuilder[I, O] {
+	b.workers = workers
+	return b
+}
+
+func (b *StageBuilder[I, O]) WithFunction(fn func(I) (O, error)) *StageBuilder[I, O] {
+	b.fn = fn
+	return b
+}
+
+func (b *StageBuilder[I, O]) AddChannel(channel <-chan I) *StageBuilder[I, O] {
+	b.channels = append(b.channels, channel)
+	return b
+}
+
+func (b *StageBuilder[I, O]) AddChannels(channels ...<-chan I) *StageBuilder[I, O] {
+	b.channels = append(b.channels, channels...)
+	return b
+}
+
+
+func (b *StageBuilder[I, O]) Build() (*StageConfig[I, O], error) {
+	if b.cfg == nil {
+		return nil, errors.New("config not set")
+	}
+	if b.stageId == "" {
+		return nil, errors.New("no stage id")
+	}
+	if b.workers == 0 {
+		return nil, errors.New("no workers")
+	}
+	if b.fn == nil {
+		return nil, errors.New("no function")
+	}
+	if len(b.channels) == 0 {
+		return nil, errors.New("no channels")
+	}
+	return &StageConfig[I, O]{
+		cfg:     b.cfg,
+		StageId: b.stageId,
+		Workers: b.workers,
+		fn:      b.fn,
+		channels:       b.channels,
+	}, nil
 }
