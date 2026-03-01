@@ -1,4 +1,4 @@
-package pipeline
+package gopl
 
 import (
 	"reflect"
@@ -72,17 +72,22 @@ func TestRouteByPredicate(t *testing.T) {
 
 func TestRouteByKey(t *testing.T) {
 	input := make(chan int, 2)
-	input <- 1
 	input <- 2
+	input <- 3
 	close(input)
 
-	outputs := RouteByKey(input, 1, func(x int) string { return "even" }, "even", "odd")
+	outputs := RouteByKey(input, 1, func(x int) string {
+		if x%2 == 0 {
+			return "even"
+		}
+		return "odd"
+	}, "even", "odd")
 
-	if <-outputs["even"] != 1 {
-		t.Error("Expected 1 on even")
+	if <-outputs["even"] != 2 {
+		t.Error("Expected 2 on even")
 	}
-	if <-outputs["odd"] != 2 {
-		t.Error("Expected 2 on odd")
+	if <-outputs["odd"] != 3 {
+		t.Error("Expected 3 on odd")
 	}
 }
 
@@ -109,12 +114,17 @@ func TestConditionalRoute(t *testing.T) {
 	input <- 3
 	close(input)
 
-	match, nomatch := ConditionalRoute(input, func(x int) bool { return x > 2 }, 1, 1)
+	// nomatch buffer must fit both non-matching items (1 and 2) so the
+	// router goroutine never blocks while we are reading match first.
+	match, nomatch := ConditionalRoute(input, func(x int) bool { return x > 2 }, 1, 2)
 
-	if <-match != 3 {
-		t.Error("Expected 3 on match")
+	if v := <-match; v != 3 {
+		t.Errorf("Expected 3 on match, got %d", v)
 	}
-	if <-nomatch != 1 || <-nomatch != 2 {
-		t.Error("Expected 1 and 2 on nomatch")
+
+	got1 := <-nomatch
+	got2 := <-nomatch
+	if (got1 != 1 || got2 != 2) && (got1 != 2 || got2 != 1) {
+		t.Errorf("Expected 1 and 2 on nomatch, got %d and %d", got1, got2)
 	}
 }

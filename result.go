@@ -1,4 +1,4 @@
-package pipeline
+package gopl
 
 // Result represents the outcome of an operation.
 // It contains a status, a warning, and an error.
