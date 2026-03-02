@@ -1,4 +1,4 @@
-# pipeline
+# gopl
 
 A Go library for building concurrent data-processing pipelines using channels and goroutines. It provides composable building blocks for stages, routing, fan-in, observability, and result handling — all backed by Go generics.
 
